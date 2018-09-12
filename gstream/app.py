@@ -10,13 +10,15 @@ DUTY_STATIONS = {
 
 app = Flask(__name__)
 
-# stuff to do:
-# 1. Get files and metadata from gDoc and store those in S3 with entries to query from DDB
-# (S3 path format according to first doc symbol? e.g., <bucket>/A/73/???/<filename.pdf>)
-# (What happens when a new file comes out?)
-# 2. Serve a daily list of new issues and updates/reissues.
-# (things we need to know: was English reissued? does the record contain English file?)
-# 3. Serve some statistics... 
+'''
+stuff to do:
+1. Get files and metadata from gDoc and store those in S3 with entries to query from DDB
+   (S3 path format according to first doc symbol? e.g., <bucket>/A/73/???/<filename.pdf>)
+   (What happens when a new file comes out?)
+2. Serve a daily list of new issues and updates/reissues.
+   (things we need to know: was English reissued? does the record contain English file?)
+3. Serve some statistics... 
+'''
 
 @app.route('/')
 def index():
@@ -44,11 +46,8 @@ def station(duty_station, query_date):
         errors.append("Incorrect date format. Defaults applied.")
         this_date = datetime.date.today().__str__()
 
-    #print(this_ds,this_date)
-    #print(errors)
-
     # We have enough valid data now to query DDB
-    return render_template('dutystation.html')
+    return render_template('dutystation.html', errors=errors)
 
 @app.route('/symbol/', defaults={'search_string': ''})
 @app.route('/symbol/<path:search_string>')
@@ -74,6 +73,8 @@ def update():
 
     Store files in S3 in a path determined by symbol, e.g., S/2010/10 would be in:
     <bucket>/S/2010/10/<original_filname>-<md5sum>.pdf
+
+    We also probably don't want people to arbitrarily run this, so perhaps it should be walled off.
     '''
     result = 'foo'
     return jsonify(result)
