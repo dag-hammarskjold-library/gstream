@@ -1,53 +1,102 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from zipfile import ZipFile
 from boto3.dynamodb.conditions import Key, Attr
+from io import StringIO, BytesIO
+from datetime import timedelta
 import datetime, boto3, botocore, os
+from .config import Config
+import requests, re, ssl
 
 DUTY_STATIONS = {
     'NY':('NY','New York'),
     'GE':('GE','Geneva')
 }
 
+session = boto3.Session(aws_access_key_id=Config.AWS_ACCESS_KEY_ID,aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
+ddb = session.resource('dynamodb',region_name='us-east-1')
+table = ddb.Table('gstream')
+
 app = Flask(__name__)
 
-'''
-stuff to do:
-1. Get files and metadata from gDoc and store those in S3 with entries to query from DDB
-   (S3 path format according to first doc symbol? e.g., <bucket>/A/73/???/<filename.pdf>)
-   (What happens when a new file comes out?)
-2. Serve a daily list of new issues and updates/reissues.
-   (things we need to know: was English reissued? does the record contain English file?)
-3. Serve some statistics... 
-'''
+class SymbolObject(object):
+    def __init__(self, metadata):
+        self.symbol = metadata['symbol1']
+        self.metadata = None
+        self.files = []
+        self.has_older = []
+        self.has_newer = []
+        self.has_current = []
+
+class MetadataObject(object):
+    def __init__(self, metadata):
+        # metadata that's common to all of the files in the object
+        # title is here until DGACM starts providing translated titles
+        self.agendaNo = metadata['agendaNo']
+        self.jobId = metadata['jobId']  # English jobid only
+        self.symbol1 = metadata['symbol1']
+        self.symbol2 = metadata['symbol2']
+        self.area = metadata['area']
+        self.sessionNo = metadata['sessionNo']
+        self.distributionType = metadata['distributionType']
+        self.title = metadata['title']
+        self.dutyStation = metadata['dutyStation']
+
+class FileObject(object):
+    def __init__(self, metadata):
+        self.checksum = metadata['checksum']
+        self.embargo = metadata['embargo']
+        self.languageId = metadata['languageId']
+        self.odsNo = metadata['odsNo']
+        self.registrationDate = metadata['registrationDate']
+        self.officialSubmissionDate = metadata['officialSubmissionDate']
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # determine the query date
+    today_int = datetime.date.today().__str__().replace('-','')
+    query_date = int(request.args.get('date',today_int))
 
-@app.route('/ds/', defaults={'duty_station':'NY', 'query_date':datetime.date.today().__str__()})
-@app.route('/ds/<duty_station>/', defaults={'query_date':datetime.date.today().__str__()})
-@app.route('/ds/<duty_station>/<query_date>')
-def station(duty_station, query_date):
-    '''
-    All of this data will come from a DB. A separate function will handle updates from gDoc.
-    '''
-    errors = []
+    response = table.query(
+        IndexName='embargo-symbol1-index',
+        #ProjectionExpression="agendaNo, jobId, embargo, checksum, odsNo, dutyStation, symbol1, symbol2, languageId, registrationDate, officialSubmissionDate",
+        KeyConditionExpression=Key('embargo').eq(query_date) & Key('symbol1').between('A','Z')
+    )
+    symbol_objects = []
+    items = response['Items']
+    for item in items:
+        # we can get a good deal of use out of the one item record
+        this_so = SymbolObject(item)
+        metadata_object = MetadataObject(item)
+        file_object = FileObject(item)
+        try:
+            symbol_object = list(filter(lambda so:so.symbol == this_so.symbol, symbol_objects))[0]
+        except IndexError:
+            symbol_object = SymbolObject(item)
+            symbol_objects.append(symbol_object)
+        
+        symbol_object.metadata = metadata_object
+        symbol_object.files.append(file_object)
 
-    try:
-        this_ds = DUTY_STATIONS[duty_station]
-    except KeyError:
-        errors.append("Invalid duty station selection. Defaults applied.")
-        this_ds = DUTY_STATIONS['NY']
+    # Let's get a basic sense of the symbol history
+    for mo in symbol_objects:
+        response = table.query(
+            IndexName='symbol1-index',
+            ProjectionExpression="embargo, checksum, odsNo, dutyStation, symbol1, languageId, registrationDate, officialSubmissionDate",
+            KeyConditionExpression=Key('symbol1').eq(mo.symbol)
+        )
+        items = response['Items']
+        for item in items:
+            fo = FileObject(item)
+            if fo.embargo < query_date:
+                mo.has_older.append(fo.languageId)
+            if fo.embargo > query_date:
+                mo.has_newer.append(fo.languageId)
 
-    try:
-        this_date = query_date
-        datetime.datetime.strptime(this_date, '%Y-%m-%d')
-    except ValueError:
-        errors.append("Incorrect date format. Defaults applied.")
-        this_date = datetime.date.today().__str__()
+        for f in mo.files:
+            mo.has_current.append(f.languageId)
 
-    # We have enough valid data now to query DDB
-    return render_template('dutystation.html', errors=errors)
+    #return render_template('index.html')
+    return render_template('index.html',results={'metadata_objects':symbol_objects,'query_date':query_date})
 
 @app.route('/symbol/', defaults={'search_string': ''})
 @app.route('/symbol/<path:search_string>')
@@ -57,24 +106,20 @@ def symbol(search_string):
     generated by a partial symbol search. We also want to know if it's in the UNDL already, 
     and which files are already attached.
     '''
-    return render_template('symbol.html')
+    response = table.query(
+        IndexName='symbol1-index',
+        #ProjectionExpression="embargo, checksum, odsNo, dutyStation, symbol1, languageId, registrationDate, officialSubmissionDate",
+        KeyConditionExpression=Key('symbol1').eq(search_string)
+    )
+    items = response['Items']
+    if len(items) > 0:
+        # All of these belong to the same symbol, so we just should create the object from the first 
+        # in the list, then iterate through the rest and append the file-only metadata
+        symbol_object = SymbolObject(items[0])
+        symbol_object.metadata = MetadataObject(items[0])
+        for item in items:
+            symbol_object.files.append(FileObject(item))
 
-
-@app.route('/update')
-def update():
-    '''
-    This is not intended to be run in a web browser, so we don't want to return a template.
-
-    It should query gDoc for a date range based on the last successful run (stored in the database)
-    Then it should process the results to determine if a file/metadata combo is a) something new, 
-    b) something reissued, or c) something it's already seen 
-
-    Things we want to know from the incoming files and metadata include md5 file checksums, release dates, etc
-
-    Store files in S3 in a path determined by symbol, e.g., S/2010/10 would be in:
-    <bucket>/S/2010/10/<original_filname>-<md5sum>.pdf
-
-    We also probably don't want people to arbitrarily run this, so perhaps it should be walled off.
-    '''
-    result = 'foo'
-    return jsonify(result)
+        return render_template('symbol.html', results=symbol_object)
+    else:
+        return jsonify('')

@@ -4,3 +4,4 @@ __pycache__/
 config.py
 zappa_settings.json
 .vscode
+gstreamer.py

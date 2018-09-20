@@ -1,4 +1,40 @@
 {% extends 'base.html' %}
 {% block content %}
-foo
+
+<div>
+    <table>
+        <caption>Released {{ results['query_date'] }}</caption>
+        <thead>
+            <tr>
+                <th>Duty Station</th>
+                <th>Symbol</th>
+                <th>Previous Releases</th>
+                <th>As of {{results['query_date']}}</th>
+                <th>Future Releases</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results['metadata_objects'] %}
+            <tr>
+                <td>
+                    {{result.metadata.dutyStation}}
+                </td>
+                <td>
+                    <a href="./symbol/{{result.symbol}}">{{result.symbol}}</a>
+                </td>
+                <td>
+                    {{result.has_older|sort|join("/")}}
+                </td>
+                <td>
+                    {{result.has_current|sort|join("/")}}
+                </td>
+                <td>
+                    {{result.has_newer|sort|join("/")}}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
 {% endblock %}

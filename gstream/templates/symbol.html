@@ -1,4 +1,15 @@
 {% extends 'base.html' %}
 {% block content %}
-<p>foo</p>
+<div>
+    <div>
+        <p>
+            {{results.symbol}} {{ results.metadata.title }}
+        </p>
+        <p>
+            {% for f in results.files|sort(attribute='languageId')|sort(attribute='embargo') %}
+            <p>{{ f.languageId }} {{ f.odsNo }} <a href="/?date={{ f.embargo }}">{{f.embargo}}</a></p>
+            {% endfor %}
+        </p>
+    </div>
+</div>
 {% endblock %}
