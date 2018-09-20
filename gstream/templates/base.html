@@ -1,1 +1,55 @@
-{% block content %} {% endblock %}
+<!DOCTYPE html>
+<html lang="en"> 
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="">
+        <title>gStream Query Tool</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" crossorigin="anonymous">
+        <script src="https://code.jquery.com/jquery-3.2.1.min.js" crossorigin="anonymous">
+        </script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" crossorigin="anonymous">
+        </script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" crossorigin="anonymous">
+        </script>
+        <script src="static/tablesorter.min.js"></script>
+        <style>
+            th.header { 
+                background-image: url(static/images/bg.gif); 
+                cursor: pointer; 
+                background-repeat: no-repeat; 
+                background-position: center left; 
+                padding-left: 20px; 
+                margin-left: -1px; 
+            }
+            th.headerSortUp {
+                background-image: url(static/images/asc.gif);
+                background-color: #8dbdd8;
+            }
+            th.headerSortDown {
+                background-image: url(static/images/desc.gif);
+                background-color: #8dbdd8;
+            }
+ 
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <a class="navbar-brand" href="/">gStream</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </nav>
+        {% block content %}
+        
+        {% endblock %}
+
+        <script>
+                $(document).ready(function() {
+                    $('#releaseTable').tablesorter();
+                })
+        </script>
+    </body>
+</html>

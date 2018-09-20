@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<div>
-    <table>
+<div class="container">
+    <table id="releaseTable" class="table table-striped tablesorter">
         <caption>Released {{ results['query_date'] }}</caption>
         <thead>
             <tr>
@@ -11,6 +11,7 @@
                 <th>Previous Releases</th>
                 <th>As of {{results['query_date']}}</th>
                 <th>Future Releases</th>
+                <th>Known UNDL IDs</th>
             </tr>
         </thead>
         <tbody>
@@ -20,7 +21,7 @@
                     {{result.metadata.dutyStation}}
                 </td>
                 <td>
-                    <a href="./symbol/{{result.symbol}}">{{result.symbol}}</a>
+                    <a href="symbol?symbol={{result.symbol}}">{{result.symbol}}</a>
                 </td>
                 <td>
                     {{result.has_older|sort|join("/")}}
@@ -36,5 +37,7 @@
         </tbody>
     </table>
 </div>
+
+
 
 {% endblock %}

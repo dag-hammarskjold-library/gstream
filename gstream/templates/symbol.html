@@ -1,15 +1,31 @@
 {% extends 'base.html' %}
 {% block content %}
-<div>
-    <div>
-        <p>
-            {{results.symbol}} {{ results.metadata.title }}
-        </p>
-        <p>
-            {% for f in results.files|sort(attribute='languageId')|sort(attribute='embargo') %}
-            <p>{{ f.languageId }} {{ f.odsNo }} <a href="/?date={{ f.embargo }}">{{f.embargo}}</a></p>
-            {% endfor %}
-        </p>
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h4>{{ results.symbol }}</h4>
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">{{ results.metadata.title }}</h5>
+          <table id="releaseTable" class="table table-striped tablesorter">
+              <thead>
+                  <tr>
+                      <th>Language</th>
+                      <th>Job Number</th>
+                      <th>Released/Embargo</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% for f in results.files|sort(attribute='languageId')|sort(attribute='embargo') %}
+                  <tr>
+                      <td>{{f.languageId}}</td>
+                      <td>{{f.odsNo}}</td>
+                      <td><a href="date?date={{ f.embargo }}">{{f.embargo}}</a></td>
+                  </tr>
+                  {% endfor %}
+              </tbody>
+          </table>
+        </div>
     </div>
 </div>
 {% endblock %}
