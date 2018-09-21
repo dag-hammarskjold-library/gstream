@@ -26,6 +26,10 @@ class SymbolObject(object):
         self.has_older = []
         self.has_newer = []
         self.has_current = []
+        try:
+            self.undl_link = metadata['undl_link']
+        except KeyError:
+            self.undl_link = None
 
 class MetadataObject(object):
     def __init__(self, metadata):
@@ -56,7 +60,7 @@ def index():
     today_int = datetime.date.today().__str__().replace('-','')
     query_date = int(request.args.get('date',today_int))
     
-    return redirect('/date?date={}'.format(query_date),code=302)
+    return redirect('./date?date={}'.format(query_date),code=302)
 
 @app.route('/date')
 def bydate():
@@ -73,6 +77,7 @@ def bydate():
     items = response['Items']
     for item in items:
         # we can get a good deal of use out of the one item record
+        #print(item)
         this_so = SymbolObject(item)
         metadata_object = MetadataObject(item)
         file_object = FileObject(item)

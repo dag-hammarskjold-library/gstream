@@ -32,6 +32,13 @@
                 <td>
                     {{result.has_newer|sort|join("/")}}
                 </td>
+                <td>
+                {% if result.undl_link %}
+                    <a href="{{result.undl_link}}" target="_new">{{result.undl_link}}</a>
+                {% else %}
+                    {{result.undl_link}}
+                {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
