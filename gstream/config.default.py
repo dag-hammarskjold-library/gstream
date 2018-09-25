@@ -16,3 +16,5 @@ class Config:
         'DownloadFiles': 'Y',
         'Odsstatus': 'Y'
     }
+
+    BUCKET="mybucket"

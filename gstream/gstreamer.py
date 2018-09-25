@@ -8,7 +8,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from tqdm import tqdm
 from lxml import etree
 from lxml.html.soupparser import fromstring
-import sys
+import sys, logging, socket
 
 def resolve(symbol):
     resolver_endpoint = 'https://9inpseo1ah.execute-api.us-east-1.amazonaws.com/prod/symbol/'
@@ -25,6 +25,9 @@ def resolve(symbol):
 session = boto3.Session(aws_access_key_id=Config.AWS_ACCESS_KEY_ID,aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
 ddb = session.resource('dynamodb',region_name='us-east-1')
 table = ddb.Table('gstream')
+s3 = boto3.resource('s3')
+bucket = Config.BUCKET
+logging.basicConfig(filename="gstream.log",level=logging.DEBUG)
 
 DUTY_STATIONS = {
     'NY':('NY','New York'),
@@ -52,16 +55,27 @@ static_params = Config.STATIC_PARAMS
 
 host = 'https://conferenceservices.un.org/ICTSAPI/ODS/GetODSDocumentsV2?'
 
+logging.info("%s - PROCESS STARTED" % datetime.datetime.now().__str__())
+
 for ds in DUTY_STATIONS:
     s,l = DUTY_STATIONS[ds]
     print("Processing %s" % l)
+    logging.info('Downloading %s files for %s' % (l,dynamic_params['DateFrom']))
     dynamic_params['DutyStation'] = ds
     url = host + urllib.parse.urlencode(static_params) + '&' + urllib.parse.urlencode(dynamic_params)
-    zipfile = ZipFile(BytesIO(urllib.request.urlopen(url, timeout=180).read()))
+    print(url)
+    try:
+        zipfile = ZipFile(BytesIO(urllib.request.urlopen(url, timeout=180).read()))
+    except socket.timeout:
+        logging.error("%s - PROCESS TIMED OUT. You will want to run this process again.")
+        raise
+
+    logging.debug(zipfile.namelist())
     if 'export.txt' in zipfile.namelist():
         metadata = zipfile.open('export.txt')
         results = json.load(metadata)
-        print("Processing %s results from %s" % (len(results), ds))
+        print("Processing %s result(s) from %s" % (len(results), ds))
+        logging.info("Processing %s result(s) from %s" % (len(results), l))
         output = []
         for result in tqdm(results):
             this_odsno = str(result['odsNo'])
@@ -70,6 +84,11 @@ for ds in DUTY_STATIONS:
             except IndexError:
                 break
             checksum = hashlib.md5(zipfile.open(matching_file).read()).hexdigest()
+            try:
+                s3.Object(bucket, checksum).load()
+            except botocore.exceptions.ClientError as e:
+                s3object = s3.Object(bucket, checksum)
+                s3object.put(Body=zipfile.open(matching_file).read())
             result['checksum'] = checksum
             result['dutyStation'] = dynamic_params['DutyStation']
             this_undl_link = resolve(result['symbol1'])
@@ -97,3 +116,5 @@ for ds in DUTY_STATIONS:
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
                     raise
+
+logging.info("%s - PROCESS FINISHED" % datetime.datetime.now().__str__())
