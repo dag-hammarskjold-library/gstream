@@ -4,4 +4,4 @@ __pycache__/
 config.py
 zappa_settings.json
 .vscode
-*.log
+gstream/gstream.log
