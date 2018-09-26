@@ -42,11 +42,11 @@ def get_symbol_list(ds,query_date):
     logging.info("%s - FILE LIST PROCESS STARTED FOR %s on %s" % (datetime.datetime.now().__str__(),ds,query_date))
     return_symbols = []
     short_name, long_name = Config.DUTY_STATIONS[ds]
-    Config.DYNAMIC_PARAMS['DutyStation'] = ds
-    Config.STATIC_PARAMS['DownloadFiles'] = 'N'
-    Config.DYNAMIC_PARAMS['DateFrom'] = query_date
-    Config.DYNAMIC_PARAMS['DateTo'] = query_date
-    url = Config.GDOC_HOST + urllib.parse.urlencode(Config.STATIC_PARAMS) + '&' + urllib.parse.urlencode(Config.DYNAMIC_PARAMS)
+    params['DutyStation'] = ds
+    params['DownloadFiles'] = 'N'
+    params['DateFrom'] = query_date
+    params['DateTo'] = query_date
+    url = Config.GDOC_HOST + urllib.parse.urlencode(params)
     # unclear if this should be enclosed in a try/except statement...
     # or what we would do about an issue like a timeout
     with contextlib.closing(urllib.request.urlopen(url, timeout=60)) as x:
@@ -65,15 +65,18 @@ def get_symbol_list(ds,query_date):
     return return_symbols     
 
 def resolve(symbol):
+    logging.info('%s - Resolving %s' % (datetime.datetime.now().__str__(),symbol))
     resolver_endpoint = 'https://9inpseo1ah.execute-api.us-east-1.amazonaws.com/prod/symbol/'
     try:
         response = urllib.request.urlopen(resolver_endpoint + symbol)
         this_data = response.read()
         root = fromstring(this_data).find('.//a[@id="link-lang-select"]')
         undl_link = root.attrib['href']
+        logging.info('%s - Resolved as %s' % (datetime.datetime.now().__str__(),undl_link))
         return undl_link
     except urllib.error.HTTPError:
         # nothing found
+        logging.info('%s - Could not resolve symbol.' % (datetime.datetime.now().__str__()))
         return None
 
 # Init
@@ -85,14 +88,13 @@ s3 = boto3.resource('s3')
 bucket = Config.BUCKET
 logging.basicConfig(
     filename="gstream.log",
-    level=logging.DEBUG
+    level=logging.INFO
 )
 
-static_params = Config.STATIC_PARAMS
-dynamic_params = Config.DYNAMIC_PARAMS
+params = Config.PARAMS
 
 # check argv to see if I passed a date
-query_date = Config.DYNAMIC_PARAMS['DateFrom']
+query_date = Config.PARAMS['DateFrom']
 try:
     d,m,y = sys.argv[1].split('/')
     query_date = datetime.date(int(y),int(m),int(d)).__str__()
@@ -107,14 +109,16 @@ for ds in Config.DUTY_STATIONS:
 # Now we can try to get the files and metadata. This should minimize the chance
 # of timeouts that can occur when lots of files are issued in a day.
 for ds in symbol_list:
-    static_params['DownloadFiles'] = 'Y'
+    params['DownloadFiles'] = 'Y'
     print("Processing %s" % ds)
     for (this_ds,this_date,this_symbol) in tqdm(symbol_list[ds]):
-        dynamic_params['DutyStation'] = this_ds
-        dynamic_params['DateFrom'] = this_date
-        dynamic_params['DateTo'] = this_date
-        this_url = Config.GDOC_HOST + urllib.parse.urlencode(static_params) + '&' + urllib.parse.urlencode(dynamic_params) + "&Symbol=%s" % this_symbol
-        logging.debug(this_url)
+    #for (this_ds,this_date,this_symbol) in symbol_list[ds]:
+        #print(this_ds,this_date,this_symbol)
+        params['DutyStation'] = this_ds
+        params['DateFrom'] = this_date
+        params['DateTo'] = this_date
+        this_url = Config.GDOC_HOST + urllib.parse.urlencode(params) + "&Symbol=%s" % this_symbol
+        #print(this_url)
         with contextlib.closing(urllib.request.urlopen(this_url, timeout=60)) as x:
             zipfile = ZipFile(BytesIO(x.read()))
             if 'export.txt' in zipfile.namelist():
@@ -122,6 +126,7 @@ for ds in symbol_list:
                 metadata = zipfile.open('export.txt')
                 results = json.load(metadata)
                 logging.info('%s - Found %s files for %s on %s.' % (datetime.datetime.now().__str__(),len(results),this_symbol,this_date))
+                #print('%s - Found %s files for %s on %s.' % (datetime.datetime.now().__str__(),len(results),this_symbol,this_date))
                 for result in results:
                     this_odsno = str(result['odsNo'])
                     matching_file = [n for n in zipfile.namelist() if this_odsno + '.pdf' in n][0]
