@@ -10,6 +10,7 @@
           <table id="releaseTable" class="table table-striped tablesorter">
               <thead>
                   <tr>
+                      <th>Checksum</th>
                       <th>Language</th>
                       <th>Job Number</th>
                       <th>Released/Embargo</th>
@@ -18,9 +19,10 @@
               <tbody>
                   {% for f in results.files|sort(attribute='languageId')|sort(attribute='embargo') %}
                   <tr>
+                      <td><a href="https://s3.amazonaws.com/undl-files/{{f.checksum}}">{{f.checksum}}</a></td>
                       <td>{{f.languageId}}</td>
                       <td>{{f.odsNo}}</td>
-                      <td><a href="date?date={{ f.embargo }}">{{f.embargo}}</a></td>
+                      <td><a href="{{deploy_context}}date?date={{ f.embargo }}">{{f.embargo}}</a></td>
                   </tr>
                   {% endfor %}
               </tbody>

@@ -27,30 +27,24 @@ ddb = session.resource('dynamodb',region_name='us-east-1')
 table = ddb.Table('gstream')
 s3 = boto3.resource('s3')
 bucket = Config.BUCKET
-logging.basicConfig(filename="gstream.log",level=logging.DEBUG)
+logging.basicConfig(filename="gstream.log",level=logging.INFO)
 
 DUTY_STATIONS = {
     'NY':('NY','New York'),
     'GE':('GE','Geneva')
 }
 
-dynamic_params = {
-  'ResultType': 'Released',
-  'DateFrom': datetime.date.today().__str__(),
-  'DateTo': datetime.date.today().__str__(),
-  'Symbol': '',
-  'DutyStation': 'NY',
-}
+params = Config.PARAMS
 
 # check argv to see if I passed a date
 try:
     d,m,y = sys.argv[1].split('/')
-    dynamic_params['DateFrom'] = datetime.date(int(y),int(m),int(d)).__str__()
-    dynamic_params['DateTo'] = dynamic_params['DateFrom']
+    params['DateFrom'] = datetime.date(int(y),int(m),int(d)).__str__()
+    params['DateTo'] = params['DateFrom']
 except IndexError:
     pass
 
-static_params = Config.STATIC_PARAMS
+#static_params = Config.PARAMS
 #static_params['DownloadFiles'] = 'N'
 
 host = 'https://conferenceservices.un.org/ICTSAPI/ODS/GetODSDocumentsV2?'
@@ -60,9 +54,9 @@ logging.info("%s - PROCESS STARTED" % datetime.datetime.now().__str__())
 for ds in DUTY_STATIONS:
     s,l = DUTY_STATIONS[ds]
     print("Processing %s" % l)
-    logging.info('Downloading %s files for %s' % (l,dynamic_params['DateFrom']))
-    dynamic_params['DutyStation'] = ds
-    url = host + urllib.parse.urlencode(static_params) + '&' + urllib.parse.urlencode(dynamic_params)
+    logging.info('Downloading %s files for %s' % (l,params['DateFrom']))
+    params['DutyStation'] = ds
+    url = host + urllib.parse.urlencode(params)
     print(url)
     try:
         zipfile = ZipFile(BytesIO(urllib.request.urlopen(url, timeout=180).read()))
@@ -82,15 +76,17 @@ for ds in DUTY_STATIONS:
             try:
                 matching_file = [n for n in zipfile.namelist() if this_odsno + '.pdf' in n][0]
             except IndexError:
-                break
+                logging.info("Hmm...couldn't find %s in export.txt" % this_odsno)
+                logging.info("Tried to process from %s and looked for files from %s" % (result, zipfile.namelist()))
+                continue
             checksum = hashlib.md5(zipfile.open(matching_file).read()).hexdigest()
             try:
                 s3.Object(bucket, checksum).load()
             except botocore.exceptions.ClientError as e:
                 s3object = s3.Object(bucket, checksum)
-                s3object.put(Body=zipfile.open(matching_file).read())
+                s3object.put(Body=zipfile.open(matching_file).read(),ContentType='application/pdf')
             result['checksum'] = checksum
-            result['dutyStation'] = dynamic_params['DutyStation']
+            result['dutyStation'] = params['DutyStation']
             this_undl_link = resolve(result['symbol1'])
             if this_undl_link:
                 result['undl_link'] = this_undl_link

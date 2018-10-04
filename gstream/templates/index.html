@@ -21,7 +21,7 @@
                     {{result.metadata.dutyStation}}
                 </td>
                 <td>
-                    <a href="symbol?symbol={{result.symbol}}">{{result.symbol}}</a>
+                    <a href="{{deploy_context}}symbol?symbol={{result.symbol}}">{{result.symbol}}</a>
                 </td>
                 <td>
                     {{result.has_older|sort|join("/")}}
