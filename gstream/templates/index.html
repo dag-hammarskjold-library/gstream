@@ -2,8 +2,15 @@
 {% block content %}
 
 <div class="container">
+    <div class="row m-2">
+        <form class="form-inline" id="filterForm">
+            <label for="filter">Filter these results: </label>
+            <input class="form-control m-2" type="text" id="filter" name="filter">
+            <span id="caption" class="mr-2">Symbols with files released {{ results['query_date'] }}{{results['date_range']}} ({{results['metadata_objects']|length}}); </span>
+            <span id="message">As filtered: {{results['metadata_objects']|length}}</span>
+        </form>
+    </div>
     <table id="releaseTable" class="table table-striped tablesorter">
-        <caption>Released {{ results['query_date'] }}</caption>
         <thead>
             <tr>
                 <th>Duty Station</th>

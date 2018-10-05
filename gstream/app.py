@@ -64,15 +64,49 @@ def index():
 
 @app.route('/date')
 def bydate():
-    # determine the query date
-    today_int = datetime.date.today().__str__().replace('-','')
-    query_date = int(request.args.get('date',today_int))
+    items = []
+    # process args and see what we got:
+    # we'll set a default query date for fallback purposes
+    query_date = int(datetime.date.today().__str__().replace('-',''))
+    returnable_query_date = query_date
+    date_range = ""
+    if request.args.get('date') is not None:
+        query_date = int(request.args.get('date'))
+        returnable_query_date = query_date
+        print("single date requested: %s" % query_date)
+        response = table.query(
+            IndexName='embargo-symbol1-index',
+            #ProjectionExpression="agendaNo, jobId, embargo, checksum, odsNo, dutyStation, symbol1, symbol2, languageId, registrationDate, officialSubmissionDate",
+            KeyConditionExpression=Key('embargo').eq(query_date) & Key('symbol1').between('A','Z')
+        )
+    elif request.args.get('daterange') is not None:
+        date_from,date_to = request.args.get("daterange").split(' - ')
+        returnable_query_date = ""
+        date_range = " - ".join([date_from, date_to])
+        # date range picker is giving DD/MM/YYY so we have to fix that for what we need
+        m,d,y = date_from.split('/')
+        q_date_from = int(''.join([y,m,d]))
+        m,d,y = date_to.split('/')
+        q_date_to = int(''.join([y,m,d]))
+        print("date range requested: %s - %s" % (q_date_from,q_date_to))
+    
+        if q_date_from == q_date_to:
+            return redirect('./date?date={}'.format(q_date_from),code=302)
 
-    response = table.query(
-        IndexName='embargo-symbol1-index',
-        #ProjectionExpression="agendaNo, jobId, embargo, checksum, odsNo, dutyStation, symbol1, symbol2, languageId, registrationDate, officialSubmissionDate",
-        KeyConditionExpression=Key('embargo').eq(query_date) & Key('symbol1').between('A','Z')
-    )
+        response = table.scan(
+            IndexName='embargo-symbol1-index',
+            FilterExpression=Key('embargo').between(q_date_from,q_date_to)
+        )
+    else:
+        # neither date nor range were specified, so we're going with the fallback
+        print("neither, so falling back to today's date")
+        response = table.query(
+           IndexName='embargo-symbol1-index',
+            #ProjectionExpression="agendaNo, jobId, embargo, checksum, odsNo, dutyStation, symbol1, symbol2, languageId, registrationDate, officialSubmissionDate",
+            KeyConditionExpression=Key('embargo').eq(query_date) & Key('symbol1').between('A','Z')
+        )
+
+
     symbol_objects = []
     items = response['Items']
     for item in items:
@@ -110,7 +144,7 @@ def bydate():
 
     #return render_template('index.html')
     deploy_context = os.environ.get("DEPLOY_CONTEXT","/")
-    return render_template('index.html',results={'metadata_objects':symbol_objects,'query_date':query_date},deploy_context=deploy_context)
+    return render_template('index.html',results={'metadata_objects':symbol_objects,'query_date':returnable_query_date,'date_range':date_range},deploy_context=deploy_context)
 
 #@app.route('/symbol/', defaults={'search_string': ''})
 #@app.route('/symbol/<path:search_string>')
@@ -141,9 +175,18 @@ def symbol():
     else:
         return jsonify('Unable to find a symbol in the database that matches your query.')
 
-@app.route('/whereami')
-def whereami():
-    this_env = os.environ.get("DEPLOY_ENV")
-    return(jsonify(this_env))
+@app.route('/range')
+def date_range():
+    today_int = datetime.date.today().__str__().replace('-','')
+    date_from,date_to = request.args.get("daterange").split(' - ')
+    # date range picker is giving DD/MM/YYY so we have to fix that for what we need
+    d,m,y = date_from.split('/')
+    q_date_from = int(''.join([y,m,d]))
+    d,m,y = date_to.split('/')
+    q_date_to = int(''.join([y,m,d]))
+    
+    if q_date_from == q_date_to:
+        return redirect('./date?date={}'.format(q_date_from),code=302)
 
-
+    
+    return(jsonify(q_date_from,q_date_to))
