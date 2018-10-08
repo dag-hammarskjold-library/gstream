@@ -8,7 +8,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from tqdm import tqdm
 from lxml import etree
 from lxml.html.soupparser import fromstring
-import sys, logging, socket
+import sys, logging
 
 def resolve(symbol):
     resolver_endpoint = 'https://9inpseo1ah.execute-api.us-east-1.amazonaws.com/prod/symbol/'

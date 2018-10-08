@@ -1,30 +1,45 @@
 from zipfile import ZipFile
 from datetime import timedelta
+import urllib.parse, urllib.request
 from io import StringIO, BytesIO
+import datetime, os, json, hashlib, boto3, botocore
 from config import Config
 from boto3.dynamodb.conditions import Key, Attr
 from tqdm import tqdm
 from lxml import etree
 from lxml.html.soupparser import fromstring
-import sys, logging, socket
-import urllib.parse, urllib.request
-import datetime, os, json, hashlib, boto3, botocore
-import contextlib, gc, time
+import sys, logging
 
-def download_to_s3(bucket,filename,body):
-    logging.info("%s - Saving %s/%s" % (datetime.datetime.now().__str__(),bucket,filename) )
+'''
+This is a rewrite of gstreamer.py to refactor it into something more reusable and to account 
+for some inconsistencies in data handling.
+'''
+
+def get_files_and_metadata(url):
     try:
-        s3.Object(bucket, filename).load()
-    except botocore.exceptions.ClientError as e:
-        s3object = s3.Object(bucket, filename)
-        s3object.put(Body=body)
+        zipfile = ZipFile(BytesIO(urllib.request.urlopen(url, timeout=180).read()))
+    except socket.timeout:
+        #logging.error("%s - PROCESS TIMED OUT. You will want to run this process again.")
+        raise
+    return zipfile
 
-def store_to_dynamodb(item):
-    logging.info("%s - STORE TO DDB PROCESS STARTED" % datetime.datetime.now().__str__())
-    # put the item in the ddb if it doesn't exist already
+def extract_metadata(zipfile):
+    # we expect export.txt tp be here
+    metadata = zipfile.open('export.txt')
+    #results = json.load(metadata)
+    return metadata
+
+def write_file_to_s3(bucket, checksum, file_object, content_type):
+    try:
+        s3.Object(bucket, checksum).load()
+    except botocore.exceptions.ClientError:
+        s3object = s3.Object(bucket, checksum)
+        s3object.put(Body=file_object.read(),ContentType=content_type)
+
+def write_metadata_to_ddb(table, metadata):
     try:
         table.put_item(
-            Item=item,
+            Item=metadata,
             Expected={
                 'checksum':{'Exists':False}
             }
@@ -33,119 +48,75 @@ def store_to_dynamodb(item):
         if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
             raise
 
-def get_symbol_list(ds,query_date):
-    '''
-    This portion of the script will find only the list of newly issued files.
-    The idea here is to avoid timeouts, so we're chunking things up into smaller
-    batches.
-    '''
-    logging.info("%s - FILE LIST PROCESS STARTED FOR %s on %s" % (datetime.datetime.now().__str__(),ds,query_date))
-    return_symbols = []
-    short_name, long_name = Config.DUTY_STATIONS[ds]
-    params['DutyStation'] = ds
-    params['DownloadFiles'] = 'N'
-    params['DateFrom'] = query_date
-    params['DateTo'] = query_date
-    url = Config.GDOC_HOST + urllib.parse.urlencode(params)
-    # unclear if this should be enclosed in a try/except statement...
-    # or what we would do about an issue like a timeout
-    with contextlib.closing(urllib.request.urlopen(url, timeout=60)) as x:
-        zipfile = ZipFile(BytesIO(x.read()))
-        if 'export.txt' in zipfile.namelist():
-            # we're really only interested here in the list of symbols with files issued
-            # on the specified date. This file could be empty...
-            metadata = zipfile.open('export.txt')
-            results = json.load(metadata)
-            for result in results:
-                this_symbol = result['symbol1']
-                symbol_set = (ds,query_date,this_symbol)
-                if symbol_set not in return_symbols:
-                    return_symbols.append(symbol_set)
-    logging.info('%s - Found %s symbols from %s with files re/issued on %s' % (datetime.datetime.now().__str__(),len(return_symbols),ds,query_date) )
-    return return_symbols     
-
-def resolve(symbol):
-    logging.info('%s - Resolving %s' % (datetime.datetime.now().__str__(),symbol))
-    resolver_endpoint = 'https://9inpseo1ah.execute-api.us-east-1.amazonaws.com/prod/symbol/'
+def resolve(endpoint, symbol):
     try:
-        response = urllib.request.urlopen(resolver_endpoint + symbol)
+        response = urllib.request.urlopen(endpoint + symbol)
         this_data = response.read()
         root = fromstring(this_data).find('.//a[@id="link-lang-select"]')
         undl_link = root.attrib['href']
-        logging.info('%s - Resolved as %s' % (datetime.datetime.now().__str__(),undl_link))
         return undl_link
     except urllib.error.HTTPError:
         # nothing found
-        logging.info('%s - Could not resolve symbol.' % (datetime.datetime.now().__str__()))
         return None
 
-# Init
-session = boto3.Session(
-    aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY
-)
+#init
+session = boto3.Session(aws_access_key_id=Config.AWS_ACCESS_KEY_ID,aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
+ddb = session.resource('dynamodb',region_name='us-east-1')
+table = ddb.Table('gstream')
 s3 = boto3.resource('s3')
 bucket = Config.BUCKET
-logging.basicConfig(
-    filename="gstream.log",
-    level=logging.INFO
-)
+logging.basicConfig(filename="gstream.log",level=logging.INFO)
 
+duty_stations = Config.DUTY_STATIONS
 params = Config.PARAMS
+host = Config.GDOC_HOST
+resolver = Config.RESOLVER
 
-# check argv to see if I passed a date
-query_date = Config.PARAMS['DateFrom']
 try:
-    d,m,y = sys.argv[1].split('/')
-    query_date = datetime.date(int(y),int(m),int(d)).__str__()
+    query_date = sys.argv[1]
+    params['DateFrom'] = query_date
+    params['DateTo'] = query_date
 except IndexError:
     pass
 
-# get a list of the symbols for this particular date and all duty stations
-symbol_list = {}
-for ds in Config.DUTY_STATIONS:
-    symbol_list[ds] = get_symbol_list(ds,query_date)
+logging.info("%s - PROCESS STARTED" % datetime.datetime.now().__str__())
 
-# Now we can try to get the files and metadata. This should minimize the chance
-# of timeouts that can occur when lots of files are issued in a day.
-for ds in symbol_list:
-    params['DownloadFiles'] = 'Y'
-    print("Processing %s" % ds)
-    for (this_ds,this_date,this_symbol) in tqdm(symbol_list[ds]):
-    #for (this_ds,this_date,this_symbol) in symbol_list[ds]:
-        #print(this_ds,this_date,this_symbol)
-        params['DutyStation'] = this_ds
-        params['DateFrom'] = this_date
-        params['DateTo'] = this_date
-        this_url = Config.GDOC_HOST + urllib.parse.urlencode(params) + "&Symbol=%s" % this_symbol
-        #print(this_url)
-        with contextlib.closing(urllib.request.urlopen(this_url, timeout=60)) as x:
-            zipfile = ZipFile(BytesIO(x.read()))
-            if 'export.txt' in zipfile.namelist():
-                # Now we get all of the files associated with the symbol in question
-                metadata = zipfile.open('export.txt')
-                results = json.load(metadata)
-                logging.info('%s - Found %s files for %s on %s.' % (datetime.datetime.now().__str__(),len(results),this_symbol,this_date))
-                #print('%s - Found %s files for %s on %s.' % (datetime.datetime.now().__str__(),len(results),this_symbol,this_date))
-                for result in results:
-                    this_odsno = str(result['odsNo'])
-                    matching_file = [n for n in zipfile.namelist() if this_odsno + '.pdf' in n][0]
-                    checksum = hashlib.md5(zipfile.open(matching_file).read()).hexdigest()
-                    body = zipfile.open(matching_file).read()
-                    # try saving it to S3; the method will skip duplicates
-                    download_to_s3(Config.BUCKET,checksum,body)
-                    # next we will try to write the data to DDB
-                    result['checksum'] = checksum
-                    result['dutyStation'] = this_ds
-                    # first we need to try resolving the symbol
-                    undl_link = resolve(this_symbol)
-                    #make sure there are no empty key values
-                    for k in result:
-                        result[k] = str(result[k])
-                        if ('Date' in k or k == 'embargo'):
-                            # we have a date
-                            d,m,y = result[k].split('/')
-                            this_d = int(datetime.date(int(y),int(m),int(d)).__str__().replace('-',''))
-                            result[k] = this_d
-                        if len(str(result[k])) == 0:
-                            result[k] = "_"
+for ds in duty_stations:
+    params['DutyStation'] = ds
+    url = host + urllib.parse.urlencode(params)
+    zipfile = get_files_and_metadata(url)
+    results = json.load(zipfile.open('export.txt'))
+    for metadata in tqdm(results):
+        this_odsno = str(metadata['odsNo'])
+        try:
+            matching_file = [n for n in zipfile.namelist() if this_odsno + '.pdf' in n][0]
+            checksum = hashlib.md5(zipfile.open(matching_file).read()).hexdigest()
+            write_file_to_s3(bucket, checksum, zipfile.open(matching_file), 'application/pdf')
+        except IndexError:
+            checksum = hashlib.md5(str(metadata).encode()).hexdigest()
+            
+        metadata['checksum'] = checksum
+        metadata['dutyStation'] = params['DutyStation']
+        this_undl_link = resolve(resolver,metadata['symbol1'])
+        if this_undl_link:
+            metadata['undl_link'] = this_undl_link
+        #make sure there are no empty key values
+        # and avoid changing the size of a mutable object while iterating
+        delete_keys = []
+        change_keys = []
+        for k in metadata:
+            #print(k,m[k])
+            #m[k] = str(m[k])
+            if ('Date' in k or k == 'embargo'):
+                # we have a date
+                d,m,y = metadata[k].split('/')
+                this_d = int(datetime.date(int(y),int(m),int(d)).__str__().replace('-',''))
+                change_keys.append((k,this_d))
+            if len(str(metadata[k])) == 0:
+                delete_keys.append(k)
+        for k,v in change_keys:
+            metadata[k] = v
+        for k in delete_keys:
+            del metadata[k]
+        write_metadata_to_ddb(table,metadata)
+    # now what about files with no metadata?

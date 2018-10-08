@@ -38,9 +38,17 @@ class MetadataObject(object):
         self.agendaNo = metadata['agendaNo']
         self.jobId = metadata['jobId']  # English jobid only
         self.symbol1 = metadata['symbol1']
-        self.symbol2 = metadata['symbol2']
+        # sometimes blank:
+        try:
+            self.symbol2 = metadata['symbol2']
+        except KeyError:
+            pass
         self.area = metadata['area']
-        self.sessionNo = metadata['sessionNo']
+        # usually blank:
+        try:
+            self.sessionNo = metadata['sessionNo']
+        except KeyError:
+            pass
         self.distributionType = metadata['distributionType']
         self.title = metadata['title']
         self.dutyStation = metadata['dutyStation']
@@ -175,18 +183,26 @@ def symbol():
     else:
         return jsonify('Unable to find a symbol in the database that matches your query.')
 
-@app.route('/range')
-def date_range():
-    today_int = datetime.date.today().__str__().replace('-','')
-    date_from,date_to = request.args.get("daterange").split(' - ')
-    # date range picker is giving DD/MM/YYY so we have to fix that for what we need
-    d,m,y = date_from.split('/')
-    q_date_from = int(''.join([y,m,d]))
-    d,m,y = date_to.split('/')
-    q_date_to = int(''.join([y,m,d]))
-    
-    if q_date_from == q_date_to:
-        return redirect('./date?date={}'.format(q_date_from),code=302)
-
-    
-    return(jsonify(q_date_from,q_date_to))
+@app.route('/s3resolve')
+def s3resolve():
+    '''
+    This function is necessary to match up a checksum, which is our unique id in Dynamo DB, 
+    to a file in S3. Because we can receive metadata with no files, we want to avoid making 
+    dead links.
+    '''
+    checksum = request.args.get('checksum',None)
+    bucket = Config.BUCKET
+    s3 = session.resource('s3')
+    if checksum is not None:
+        try:
+            s3.Object(bucket,checksum).load()
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return jsonify('The object does not exist')
+            else:
+                return jsonify(e)
+        else:
+            url = 'https://s3.amazonaws.com/{}/{}'.format(bucket,checksum)
+            return jsonify({'url':url})
+    else:
+        return jsonify('No identifier was specified. Please include a checksum as your query argument.')
