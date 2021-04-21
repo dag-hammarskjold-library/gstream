@@ -17,6 +17,7 @@
                         <th scope="col">Symbol1</th>
                         <th scope="col">Symbol2</th>
                         <th scope="col">Title</th>
+                        <th scope="col">Links</th>
                         <th scope="col">Files</th>
                     </tr>
                 </thead>
@@ -26,6 +27,11 @@
                         <td>{{data[row].symbol1}}</td>
                         <td>{{data[row].symbol2}}</td>
                         <td>{{data[row].title}}</td>
+                        <td>
+                            {% for desc, url in data[row].links %}
+                            <a href="{{url}}" target="_blank">{{desc}}</a>
+                            {% endfor %}
+                        </td>
                         <td>
                             {% for f in data[row].files %}
                                 <span class="badge bg-secondary">{{f.languageId}}: {{f.odsNo}}</span>
