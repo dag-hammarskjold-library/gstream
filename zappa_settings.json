@@ -1,0 +1,10 @@
+{
+    "dev": {
+        "app_function": "gstream.app.app",
+        "profile_name": "default",
+        "project_name": "gstream",
+        "runtime": "python3.7",
+        "s3_bucket": "zappa-9vpwkivvo",
+        "aws_region": "us-east-1"
+    }
+}
