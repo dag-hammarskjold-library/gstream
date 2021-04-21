@@ -3,7 +3,7 @@
 <div class="container">
     <div id="apiData" class="col-12">
         <div class="row m-2">
-            <span id="caption" class="h3 mr-2">{{duty_station}}: Files released on {{ date }} ({{data|length}})</span>
+            <span id="caption" class="h3 mr-2">{{duty_station}}: Symbols with files released on {{ date }} ({{data|length}})</span>
             <form class="form-inline" id="filterForm">
                 <label for="filter">Filter these results: </label>
                 <input class="form-control m-2" type="text" id="filter" name="filter">
@@ -14,29 +14,23 @@
             <table class="table table-striped" id="releaseTable">
                 <thead>
                     <tr>
-                    <th scope="col">Job ID</th>
-                    <th scope="col">ODS#</th>
-                    <th scope="col">Language</th>
-                    <th scope="col">Title</th>
-                    <th scope="col">Symbols</th>
-                    <th scope="col">Registration Date</th>
-                    <th scope="col">Embargo</th>
-                    <th scope="col">Official Submission Date</th>
+                        <th scope="col">Symbol1</th>
+                        <th scope="col">Symbol2</th>
+                        <th scope="col">Title</th>
+                        <th scope="col">Files</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in data %}
                     <tr>
-                        <td>{{row['jobId']}}</td>
-                        <td>{{row['odsNo']}}</td>
-                        <td>{{row['languageId']}}</td>
-                        <td>{{row['title']}}</td>
+                        <td>{{data[row].symbol1}}</td>
+                        <td>{{data[row].symbol2}}</td>
+                        <td>{{data[row].title}}</td>
                         <td>
-                            {{[row['symbol1'], row['symbol2']]|join(" ")}}
+                            {% for f in data[row].files %}
+                                <span class="badge bg-secondary">{{f.languageId}}: {{f.odsNo}}</span>
+                            {% endfor %}
                         </td>
-                        <td>{{row['registrationDate']}}</td>
-                        <td>{{row['embargo']}}</td>
-                        <td>{{row['officialSubmissionDate']}}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
