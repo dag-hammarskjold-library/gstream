@@ -2,7 +2,6 @@ venv/
 env/
 __pycache__/
 *.py[co]
-config.py
 .vscode
 gstream/gstream.log
 old
