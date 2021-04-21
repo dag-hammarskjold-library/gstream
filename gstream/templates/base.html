@@ -1,80 +1,91 @@
 <!DOCTYPE html>
-<html lang="en"> 
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="">
-        <title>gStream Query Tool</title>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" crossorigin="anonymous">
-        <script src="https://code.jquery.com/jquery-3.2.1.min.js" crossorigin="anonymous">
-        </script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" crossorigin="anonymous">
-        </script>
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" crossorigin="anonymous">
-        </script>
-        <script src="static/tablesorter.min.js"></script>
-        <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-        <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
-        <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
-        <style>
-            th.header { 
-                background-image: url(static/images/bg.gif); 
-                cursor: pointer; 
-                background-repeat: no-repeat; 
-                background-position: center left; 
-                padding-left: 20px; 
-                margin-left: -1px; 
-            }
-            th.headerSortUp {
-                background-image: url(static/images/asc.gif);
-                background-color: #8dbdd8;
-            }
-            th.headerSortDown {
-                background-image: url(static/images/desc.gif);
-                background-color: #8dbdd8;
-            }
- 
-        </style>
-    </head>
+<html lang="en">
 
-    <body>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <title>gStream Query Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+        crossorigin="anonymous"></script>
+    <script   src="https://code.jquery.com/jquery-3.6.0.min.js"   integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="   crossorigin="anonymous"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+    <script src="{{url_for('static', filename='tablesorter.min.js')}}"></script>
+    <style>
+        th.header {
+            background-image: url(static/images/bg.gif);
+            cursor: pointer;
+            background-repeat: no-repeat;
+            background-position: center left;
+            padding-left: 20px;
+            margin-left: -1px;
+        }
+
+        th.headerSortUp {
+            background-image: url(static/images/asc.gif);
+            background-color: #8dbdd8;
+        }
+
+        th.headerSortDown {
+            background-image: url(static/images/desc.gif);
+            background-color: #8dbdd8;
+        }
+    </style>
+</head>
+
+
+<body class="d-flex flex-column h-100">
+    <header>
         <nav class="navbar navbar-expand-lg navbar-light bg-light">
-            <a class="navbar-brand" href="{{deploy_context}}">gStream</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <div class="container-fluid">
+              <a class="navbar-brand" href="#">gStream Query</a>
+              <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse">
-                <form class="form-inline" action="{{deploy_context}}date">
-                    <input class="form-control mr-sm-2" type="text" id="daterange" name="daterange">
-                    <button class="btn btn-outline-success" type="submit">Search Dates</button>
+              </button>
+              <div class="collapse navbar-collapse" id="navbarText">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    {% for ds,code in duty_stations %}
+                        {% if code == duty_station %}
+                            <li class="nav-item"><a class="nav-link active" href="{{url_for('index', dutyStation=code, date=date)}}">{{ds}}</a></li>
+                        {% else %}
+                            <li class="nav-item"><a class="nav-link" href="{{url_for('index', dutyStation=code, date=date)}}">{{ds}}</a></li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+                <span class="nav-item"><a href="{{url_for('index', dutyStation=duty_station, date=prev_date)}}" class="nav-link">Previous</a></span>
+                <span class="navbar-text">
+                  {{date}}
+                </span>
+                {% if next_date is not none %}
+                    <span class="nav-item"><a href="{{url_for('index', dutyStation=duty_station, date=next_date)}}" class="nav-link">Next</a></span>
+                {% else %}
+                    <span class="nav-item"><a href="#" class="nav-link disabled">Next</a></span>
+                {% endif %}
+                <form class="row row-cols-lg-auto g-3 align-items-center" action="{{url_for('index')}}">
+                    <div class="col-12">
+                        <input type="hidden" id="dutyStation" name="dutyStation" value="{{duty_station}}">
+                        <input class="form-control" type="text" id="date" name="date" placeholder="Choose a date">
+                    </div>
+                    <div class="col-12">
+                        <button class="btn btn-outline-success" type="submit">Search</button>
+                    </div>
                 </form>
+              </div>
             </div>
-            
-        </nav>
-        {% block content %}
-        
-        {% endblock %}
+          </nav>
+    </header>
+    <main class="flex-shrink-0 mt-5">
+        <div class="container">
+            {% block content %}
+            {% endblock content %}
+        </div>
+    </main>
+</body>
 
-        <script>
-                $(document).ready(function() {
-                    $('#releaseTable').tablesorter();
-                    $('#filterForm').submit(function(e){
-                        e.preventDefault();
-                    });
-                    $('#filter').on("keyup", function() {
-                        var value = $(this).val().toLowerCase();
-                        $('#releaseTable tbody tr').filter(function() {
-                            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                        });
-                        var rows = $('#releaseTable tbody tr:visible').length;
-                        $('#message').text("As filtered: " + rows);
-                    });
-                });
-                $(function() {
-                    $('input[name="daterange"]').daterangepicker() 
-                });
-
-        </script>
-    </body>
 </html>

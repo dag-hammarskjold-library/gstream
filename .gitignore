@@ -6,3 +6,4 @@ config.py
 zappa_settings.json
 .vscode
 gstream/gstream.log
+old

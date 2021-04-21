@@ -1,57 +1,78 @@
 {% extends 'base.html' %}
 {% block content %}
-
 <div class="container">
-    <div class="row m-2">
-        <form class="form-inline" id="filterForm">
-            <label for="filter">Filter these results: </label>
-            <input class="form-control m-2" type="text" id="filter" name="filter">
-            <span id="caption" class="mr-2">Symbols with files released {{ results['query_date'] }}{{results['date_range']}} ({{results['metadata_objects']|length}}); </span>
-            <span id="message">As filtered: {{results['metadata_objects']|length}}</span>
-        </form>
+    <div id="apiData" class="col-12">
+        <div class="row m-2">
+            <span id="caption" class="h3 mr-2">{{duty_station}}: Files released on {{ date }} ({{data|length}})</span>
+            <form class="form-inline" id="filterForm">
+                <label for="filter">Filter these results: </label>
+                <input class="form-control m-2" type="text" id="filter" name="filter">
+                <span id="message">As filtered: {{data|length}}</span>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped" id="releaseTable">
+                <thead>
+                    <tr>
+                    <th scope="col">Job ID</th>
+                    <th scope="col">ODS#</th>
+                    <th scope="col">Language</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Symbols</th>
+                    <th scope="col">Registration Date</th>
+                    <th scope="col">Embargo</th>
+                    <th scope="col">Official Submission Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data %}
+                    <tr>
+                        <td>{{row['jobId']}}</td>
+                        <td>{{row['odsNo']}}</td>
+                        <td>{{row['languageId']}}</td>
+                        <td>{{row['title']}}</td>
+                        <td>
+                            {{[row['symbol1'], row['symbol2']]|join(" ")}}
+                        </td>
+                        <td>{{row['registrationDate']}}</td>
+                        <td>{{row['embargo']}}</td>
+                        <td>{{row['officialSubmissionDate']}}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
-    <table id="releaseTable" class="table table-striped tablesorter">
-        <thead>
-            <tr>
-                <th>Duty Station</th>
-                <th>Symbol</th>
-                <th>Previous Releases</th>
-                <th>As of {{results['query_date']}}</th>
-                <th>Future Releases</th>
-                <th>Known UNDL IDs</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for result in results['metadata_objects'] %}
-            <tr>
-                <td>
-                    {{result.metadata.dutyStation}}
-                </td>
-                <td>
-                    <a href="{{deploy_context}}symbol?symbol={{result.symbol}}">{{result.symbol}}</a>
-                </td>
-                <td>
-                    {{result.has_older|sort|join("/")}}
-                </td>
-                <td>
-                    {{result.has_current|sort|join("/")}}
-                </td>
-                <td>
-                    {{result.has_newer|sort|join("/")}}
-                </td>
-                <td>
-                {% if result.undl_link %}
-                    <a href="{{result.undl_link}}" target="_new">{{result.undl_link}}</a>
-                {% else %}
-                    {{result.undl_link}}
-                {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </div>
 
+<script>
+    $(document).ready(function () {
+        $('#releaseTable').tablesorter();
+        $('#filterForm').submit(function (e) {
+            e.preventDefault();
+        });
+        $('#filter').on("keyup", function () {
+            var value = $(this).val().toLowerCase();
+            $('#releaseTable tbody tr').filter(function () {
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            });
+            var rows = $('#releaseTable tbody tr:visible').length;
+            $('#message').text("As filtered: " + rows);
+        });
+    });
+    $(function() {
+        $('input[name="date"]').daterangepicker({
+            singleDatePicker: true,
+            showDropdowns: true,
+            minYear: 1901,
+            maxYear: parseInt(moment().format('YYYY'),10),
+            locale: {
+                format: 'YYYY-MM-DD'
+            },
+            startDate: '{{date}}'
+        });
+    });
 
+</script>
 
-{% endblock %}
+{% endblock content %}
