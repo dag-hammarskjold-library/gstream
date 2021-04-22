@@ -84,7 +84,11 @@ def index():
             symbol_objects[m.symbol1].files.append(f)
 
     for s in symbol_objects:
-        returned_files = DLXFile.find({'identifiers': [{'type': 'symbol', 'value': s}], 'languages': ['EN']})
+        symbol2 = symbol_objects[s].symbol2
+        if len(symbol2) > 0:
+            returned_files = DLXFile.find({'identifiers': [{'type': 'symbol', 'value': s}, {'type': 'symbol', 'value': symbol2}], 'languages': ['EN']})
+        else:
+            returned_files = DLXFile.find({'identifiers': [{'type': 'symbol', 'value': s}], 'languages': ['EN']})
         for f in returned_files:
             symbol_objects[s].links.append(('PDF', f"https://{f.uri}"))
 
@@ -92,8 +96,7 @@ def index():
         res = list(BibSet.from_query(query.compile()))
         try:
             my_s = res[0].get_value('191','a')
-            if my_s == s:
-                symbol_objects[s].links.append(('UNDL', f"{Config.dlx_endpoint}records/bibs/{res[0].id}"))
+            symbol_objects[s].links.append(('UNDL', f"{Config.dlx_endpoint}records/bibs/{res[0].id}"))
         except:
             pass
 
