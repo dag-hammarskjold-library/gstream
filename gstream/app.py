@@ -46,7 +46,7 @@ class FileObject(object):
         #self.checksum = metadata['checksum']
         self.embargo = metadata['embargo']
         self.languageId = metadata['languageId']
-        self.odsNo = metadata['odsNo']
+        self.odsNo = metadata['jobId']
         self.registrationDate = metadata['registrationDate']
         self.officialSubmissionDate = metadata['officialSubmissionDate']
 
@@ -66,7 +66,8 @@ def index():
     g.set_param('dutyStation', duty_station)
     g.set_param('dateFrom', date)
     g.set_param('dateTo', date)
-    g.set_param('includeFiles', 'false')
+    g.set_param('Odsstatus', 'N')
+    g.set_param('DownloadFiles', 'N')
 
     next_date = date_obj.date() + datetime.timedelta(days=1)
     if next_date > today:
