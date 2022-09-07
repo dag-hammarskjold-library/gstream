@@ -66,7 +66,7 @@ def index():
     g.set_param('dutyStation', duty_station)
     g.set_param('dateFrom', date)
     g.set_param('dateTo', date)
-    g.set_param('Odsstatus', 'N')
+    #g.set_param('Odsstatus', 'N')
     g.set_param('DownloadFiles', 'N')
 
     next_date = date_obj.date() + datetime.timedelta(days=1)
