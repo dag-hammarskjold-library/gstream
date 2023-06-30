@@ -11,7 +11,7 @@ from dlx.marc import BibSet, Query
 
 secrets = json.loads(Config.api_secrets)
 app = Flask(__name__)
-db_client = DLX.connect(Config.connect_string)
+db_client = DLX.connect(Config.connect_string, database=Config.dbname)
 
 class MetadataObject(object):
     def __init__(self, metadata):
