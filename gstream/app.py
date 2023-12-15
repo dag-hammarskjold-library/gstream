@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect
+from flask import Flask, render_template, jsonify, request, redirect, abort
 from datetime import timedelta
 from gdoc_api import Gdoc
 import datetime
@@ -85,21 +85,20 @@ def index():
         else:
             symbol_objects[m.symbol1].files.append(f)
 
-    for s in symbol_objects:
-        symbol2 = symbol_objects[s].symbol2
-        if len(symbol2) > 0:
-            returned_files = DLXFile.find({'identifiers': [{'type': 'symbol', 'value': s}, {'type': 'symbol', 'value': symbol2}], 'languages': ['EN']})
-        else:
-            returned_files = DLXFile.find({'identifiers': [{'type': 'symbol', 'value': s}], 'languages': ['EN']})
-        for f in returned_files:
-            symbol_objects[s].links.append(('PDF', f"https://{f.uri}"))
-
-        query = Query.from_string(f'191__a:{s}')
-        res = list(BibSet.from_query(query.compile()))
-        try:
-            my_s = res[0].get_value('191','a')
-            symbol_objects[s].links.append(('UNDL', f"{Config.dlx_endpoint}records/bibs/{res[0].id}"))
-        except:
-            pass
-
     return render_template('index.html', duty_stations=Config.duty_stations, data=symbol_objects, date=date, duty_station=duty_station, next_date=next_date, prev_date=prev_date)
+
+@app.route('/dlx')
+def search_dlx():
+    symbol = request.args.get('symbol')
+    if symbol is None:
+        abort(404)
+    
+    results = json.loads(requests.get(f"{Config.dlx_endpoint}/api/marc/bibs/records?start=1&limit=25&sort=updated&direction=desc&search=symbol:'{symbol}'&format=brief").text)
+    files = []
+    if len(results["data"]) > 0:
+        bib_url = results["data"][0]["url"]
+        files = json.loads(requests.get(bib_url).text)["data"]["files"]
+        #en_files = list(filter(lambda x: x["language"] == "en", files))
+        #print(en_file)
+
+    return {"files": files}

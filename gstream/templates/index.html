@@ -24,13 +24,16 @@
                 <tbody>
                     {% for row in data %}
                     <tr>
-                        <td>{{data[row].symbol1}}</td>
+                        <td class="symbol1">{{data[row].symbol1}}</td>
                         <td>{{data[row].symbol2}}</td>
                         <td>{{data[row].title}}</td>
                         <td>
                             {% for desc, url in data[row].links %}
                             <a href="{{url}}" target="_blank">{{desc}}</a>
                             {% endfor %}
+                            <a class="dlx-symbol" data-symbol="{{data[row].symbol1}}" href="" target="_blank"></a>
+                            <a class="dlx-search" data-symbol="{{data[row].symbol1}}" href="https://metadata.un.org/editor/records/bibs/search?q=symbol%3A'{{data[row].symbol1}}'" target="_blank">DLX</a>
+                            <a class="undl-search" data-symbol="{{data[row].symbol1}}"href="https://digitallibrary.un.org/search?ln=en&p=symbol%3A{{data[row].symbol1}}&f=&c=Resource%20Type&c=UN%20Bodies&sf=&so=d&rg=50&fti=0" target="_blank">UNDL</a>
                         </td>
                         <td>
                             {% for f in data[row].files %}
@@ -59,6 +62,17 @@
             var rows = $('#releaseTable tbody tr:visible').length;
             $('#message').text("As filtered: " + rows);
         });
+        for (let el of document.querySelectorAll(".dlx-symbol")) {
+            console.log(el)
+            fetch(`./dlx?symbol=${el.getAttribute('data-symbol')}`).then( data => data.json() ).then( json => {
+                for (let file of json.files) {
+                    if (file.language === "en") {
+                        el.href = `${file.url}?action=open`
+                        el.text = "PDF"
+                    }
+                }
+            })
+        }
     });
     $(function() {
         $('input[name="date"]').daterangepicker({
